@@ -1,0 +1,62 @@
+<Page
+    x:Class="RadialMenu.Settings.Pages.HomePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:tk="using:CommunityToolkit.WinUI.Controls"
+    xmlns:models="using:RadialMenu.Settings.Models">
+
+    <ScrollViewer>
+        <StackPanel Spacing="6" Padding="36,8,36,36" MaxWidth="1000" HorizontalAlignment="Stretch">
+            <TextBlock Text="Radial Menu" Style="{StaticResource TitleTextBlockStyle}" Margin="0,0,0,12" />
+
+            <InfoBar x:Name="UpdateBar" Severity="Success" IsOpen="False" IsClosable="True"
+                     Title="新しい版があります">
+                <InfoBar.ActionButton>
+                    <Button Content="情報ページを開く" Click="OpenAbout_Click" HorizontalAlignment="Right" />
+                </InfoBar.ActionButton>
+            </InfoBar>
+            <InfoBar x:Name="HostBar" Severity="Warning" IsOpen="False" IsClosable="True"
+                     Title="Radial Menu が起動していません"
+                     Message="メニューは本体が起動しているときに使えます。">
+                <InfoBar.ActionButton>
+                    <Button Content="起動する" Click="StartHost_Click" HorizontalAlignment="Right" />
+                </InfoBar.ActionButton>
+            </InfoBar>
+
+            <TextBlock Text="クイック設定" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="1,16,0,4" />
+            <tk:SettingsCard Header="メニューを有効にする"
+                             Description="オフにすると、中ボタンの長押しでメニューが出なくなります">
+                <tk:SettingsCard.HeaderIcon><FontIcon Glyph="&#xE7E8;" /></tk:SettingsCard.HeaderIcon>
+                <ToggleSwitch IsOn="{x:Bind Cfg.Enabled, Mode=TwoWay}" />
+            </tk:SettingsCard>
+            <tk:SettingsCard Header="段とアイテムを編集"
+                             Description="メニューの項目、段、段を切り替えるキーを設定します"
+                             IsClickable="True" Click="EditLayers_Click">
+                <tk:SettingsCard.HeaderIcon><FontIcon Glyph="&#xE81E;" /></tk:SettingsCard.HeaderIcon>
+            </tk:SettingsCard>
+            <tk:SettingsCard Header="全般の設定"
+                             Description="長押しの時間、サイズ、テーマ、自動起動"
+                             IsClickable="True" Click="EditGeneral_Click">
+                <tk:SettingsCard.HeaderIcon><FontIcon Glyph="&#xE713;" /></tk:SettingsCard.HeaderIcon>
+            </tk:SettingsCard>
+
+            <TextBlock Text="段の一覧" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="1,20,0,4" />
+            <ItemsControl ItemsSource="{x:Bind Cfg.Layers}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="models:Layer">
+                        <tk:SettingsCard Header="{x:Bind Name, Mode=OneWay}"
+                                         Description="{x:Bind Summary, Mode=OneWay}"
+                                         Margin="0,0,0,4">
+                            <tk:SettingsCard.HeaderIcon><FontIcon Glyph="&#xE8FD;" /></tk:SettingsCard.HeaderIcon>
+                        </tk:SettingsCard>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Margin="1,16,0,0" TextWrapping="Wrap"
+                       Style="{StaticResource CaptionTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       Text="操作: 中ボタンを長押しでメニューを表示。押したまま、段が複数あるときは割り当てたキー・Tab・ホイール回転で段を切り替えます。設定は変更するとすぐに反映されます。" />
+        </StackPanel>
+    </ScrollViewer>
+</Page>
