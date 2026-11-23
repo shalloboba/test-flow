@@ -6,7 +6,7 @@
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <RootNamespace>RadialMenu.Settings</RootNamespace>
     <AssemblyName>RadialMenu.Settings</AssemblyName>
-    <Version>0.3.0</Version>
+    <Version>0.4.0</Version>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>app.ico</ApplicationIcon>
@@ -32,5 +32,14 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
+
+  <!-- 本体 (Rust) がビルド済みなら、publish の出力へ自動で同梱する。
+       本体が無いときは何もしない (設定アプリ単体のビルドを通すため)。 -->
+  <Target Name="CopyHostExeToPublish" AfterTargets="Publish">
+    <Copy SourceFiles="..\target\release\RadialMenu.exe"
+          DestinationFolder="$(PublishDir)"
+          Condition="Exists('..\target\release\RadialMenu.exe')"
+          SkipUnchangedFiles="true" />
+  </Target>
 
 </Project>

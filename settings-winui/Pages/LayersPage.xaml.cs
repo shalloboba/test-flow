@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using RadialMenu.Settings.Models;
+using Windows.Storage.Pickers;
 
 namespace RadialMenu.Settings.Pages;
 
@@ -64,6 +65,26 @@ public sealed partial class LayersPage : Page
         if (to < 0 || to >= Cfg.Layers.Count) return;
         Cfg.Layers.Move(from, to);
         LayerList.SelectedItem = layer;
+    }
+
+    /// <summary>「プログラムを実行」の参照ボタン。選んだファイルのパスを項目へ入れる。</summary>
+    async void BrowseRunPath_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: Item item }) return;
+        if (App.MainWindow is not { } window) return;
+        var picker = new FileOpenPicker
+        {
+            ViewMode = PickerViewMode.List,
+            SuggestedStartLocation = PickerLocationId.ComputerFolder,
+        };
+        picker.FileTypeFilter.Add(".exe");
+        picker.FileTypeFilter.Add(".lnk");
+        picker.FileTypeFilter.Add(".bat");
+        picker.FileTypeFilter.Add(".cmd");
+        picker.FileTypeFilter.Add("*");
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(window));
+        var file = await picker.PickSingleFileAsync();
+        if (file is not null) item.RunPath = file.Path;
     }
 
     async Task ShowMessageAsync(string text)

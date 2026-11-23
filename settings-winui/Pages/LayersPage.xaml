@@ -44,7 +44,24 @@
                     </ComboBox>
                     <TextBox Header="{x:Bind ValueHeader, Mode=OneWay}"
                              PlaceholderText="{x:Bind ValuePlaceholder, Mode=OneWay}"
+                             Visibility="{x:Bind IsNotRun, Mode=OneWay}"
                              Text="{x:Bind Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    <StackPanel Spacing="8" Visibility="{x:Bind IsRun, Mode=OneWay}">
+                        <Grid ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox Header="プログラムのパス"
+                                     PlaceholderText="例: C:\Program Files\...\app.exe"
+                                     Text="{x:Bind RunPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            <Button Grid.Column="1" Content="参照..." VerticalAlignment="Bottom"
+                                    Click="BrowseRunPath_Click" />
+                        </Grid>
+                        <TextBox Header="引数(任意)"
+                                 PlaceholderText="例: --fullscreen"
+                                 Text="{x:Bind RunArgs, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
                     <TextBox Header="サブタイトル(空欄ならキーや URL を表示)"
                              Text="{x:Bind Hint, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                     <StackPanel Orientation="Horizontal" Spacing="12">
@@ -87,7 +104,7 @@
                               SelectedIndex="{x:Bind KeyIndex, Mode=TwoWay}" />
                     <TextBlock TextWrapping="Wrap" Style="{StaticResource CaptionTextBlockStyle}"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                               Text="中ボタンを押したままこのキーを押すと、この段に切り替わります。同じキーを複数の段に割り当てた場合は、上の段が優先されます。「自動」は段の順番どおり 1 段目＝1、2 段目＝2… です。" />
+                               Text="メニューを開いたままこのキーを押すと、この段に切り替わります。同じキーを複数の段に割り当てた場合は、上の段が優先されます。「自動」は段の順番どおり 1 段目＝1、2 段目＝2… です。" />
                 </StackPanel>
                 <TextBlock Text="項目" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,6,0,0" />
                 <ItemsControl ItemsSource="{x:Bind Items}" ItemTemplate="{StaticResource ItemTemplate}" />

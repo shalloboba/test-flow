@@ -42,6 +42,10 @@ public sealed class Item : Observable
                 Raise(nameof(KindIndex));
                 Raise(nameof(ValueHeader));
                 Raise(nameof(ValuePlaceholder));
+                Raise(nameof(IsRun));
+                Raise(nameof(IsNotRun));
+                Raise(nameof(RunPath));
+                Raise(nameof(RunArgs));
             }
         }
     }
@@ -50,7 +54,15 @@ public sealed class Item : Observable
     public string Value
     {
         get => _value;
-        set { if (Set(ref _value, value ?? "")) Raise(nameof(Subtitle)); }
+        set
+        {
+            if (Set(ref _value, value ?? ""))
+            {
+                Raise(nameof(Subtitle));
+                Raise(nameof(RunPath));
+                Raise(nameof(RunArgs));
+            }
+        }
     }
 
     [JsonPropertyName("hint")]
@@ -90,6 +102,54 @@ public sealed class Item : Observable
         _hint.Length > 0
             ? _hint
             : string.Join(" + ", _value.Split('+').Select(s => s.Trim()));
+
+    // ---- 「プログラムを実行」用のパスと引数の分離表示 ----
+    // 保存形式は従来どおり Value 1 つで、本体 (Rust) の launch と同じ規則で分け合う。
+
+    [JsonIgnore]
+    public bool IsRun => _kind == "run";
+
+    [JsonIgnore]
+    public bool IsNotRun => _kind != "run";
+
+    /// <summary>本体の launch と同じ規則で Value を (パス, 引数) に分ける。</summary>
+    static (string Path, string Args) SplitRunValue(string raw)
+    {
+        var c = (raw ?? "").Trim();
+        if (c.Length == 0) return ("", "");
+        if (File.Exists(c)) return (c, "");
+        if (c[0] == '"')
+        {
+            var end = c.IndexOf('"', 1);
+            if (end > 0) return (c.Substring(1, end - 1), c.Substring(end + 1).Trim());
+            return (c.Substring(1), "");
+        }
+        var sp = c.IndexOf(' ');
+        if (sp > 0) return (c.Substring(0, sp), c.Substring(sp + 1).Trim());
+        return (c, "");
+    }
+
+    static string ComposeRunValue(string path, string args)
+    {
+        var p = (path ?? "").Trim();
+        var a = (args ?? "").Trim();
+        if (a.Length == 0) return p;
+        return $"\"{p}\" {a}";
+    }
+
+    [JsonIgnore]
+    public string RunPath
+    {
+        get => SplitRunValue(_value).Path;
+        set => Value = ComposeRunValue(value, RunArgs);
+    }
+
+    [JsonIgnore]
+    public string RunArgs
+    {
+        get => SplitRunValue(_value).Args;
+        set => Value = ComposeRunValue(RunPath, value);
+    }
 
     [JsonIgnore]
     public int IconIndex

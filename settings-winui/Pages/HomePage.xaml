@@ -25,7 +25,7 @@
 
             <TextBlock Text="クイック設定" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="1,16,0,4" />
             <tk:SettingsCard Header="メニューを有効にする"
-                             Description="オフにすると、中ボタンの長押しでメニューが出なくなります">
+                             Description="オフにすると、起動操作でメニューが出なくなります">
                 <tk:SettingsCard.HeaderIcon><FontIcon Glyph="&#xE7E8;" /></tk:SettingsCard.HeaderIcon>
                 <ToggleSwitch IsOn="{x:Bind Cfg.Enabled, Mode=TwoWay}" />
             </tk:SettingsCard>
@@ -35,7 +35,7 @@
                 <tk:SettingsCard.HeaderIcon><FontIcon Glyph="&#xE81E;" /></tk:SettingsCard.HeaderIcon>
             </tk:SettingsCard>
             <tk:SettingsCard Header="全般の設定"
-                             Description="長押しの時間、サイズ、テーマ、自動起動"
+                             Description="起動方法、長押しの時間、サイズ、テーマ、自動起動"
                              IsClickEnabled="True" Click="EditGeneral_Click">
                 <tk:SettingsCard.HeaderIcon><FontIcon Glyph="&#xE713;" /></tk:SettingsCard.HeaderIcon>
             </tk:SettingsCard>
@@ -56,7 +56,7 @@
             <TextBlock Margin="1,16,0,0" TextWrapping="Wrap"
                        Style="{StaticResource CaptionTextBlockStyle}"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                       Text="操作: 中ボタンを長押しでメニューを表示。押したまま、段が複数あるときは割り当てたキー・Tab・ホイール回転で段を切り替えます。設定は変更するとすぐに反映されます。" />
+                       Text="操作: 起動操作(初期設定は中ボタンの長押し。全般で変更できます)でメニューを表示。押したまま、段が複数あるときは割り当てたキー・Tab・ホイール回転で段を切り替えます。設定は変更するとすぐに反映されます。" />
         </StackPanel>
     </ScrollViewer>
 </Page>

@@ -2,7 +2,7 @@
 ; ビルド: build-installer.ps1 を実行(または、先に本体と設定アプリをビルドしてから iscc RadialMenu.iss)
 
 #define MyAppName      "Radial Menu"
-#define MyAppVersion   "0.3.0"
+#define MyAppVersion   "0.4.0"
 #define MyAppPublisher "Radial Menu"
 #define MyAppExe       "RadialMenu.exe"
 #define SettingsExe    "RadialMenu.Settings.exe"

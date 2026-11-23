@@ -168,18 +168,25 @@ pub fn keys(spec: &str) {
     send(&seq);
 }
 
-pub fn middle_click() {
+/// 短い押しだったときに、本来のクリックを再生する。bit: 1=中, 2=右, 4=X1, 8=X2。
+pub fn replay_click(bit: u32) {
+    let (down_flag, up_flag, data) = match bit {
+        2 => (MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP, 0),
+        4 => (MOUSEEVENTF_XDOWN, MOUSEEVENTF_XUP, 1),
+        8 => (MOUSEEVENTF_XDOWN, MOUSEEVENTF_XUP, 2),
+        _ => (MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP, 0),
+    };
     let mut down: INPUT = unsafe { zeroed() };
     down.r#type = INPUT_MOUSE;
     down.Anonymous.mi = MOUSEINPUT {
         dx: 0,
         dy: 0,
-        mouseData: 0,
-        dwFlags: MOUSEEVENTF_MIDDLEDOWN,
+        mouseData: data,
+        dwFlags: down_flag,
         time: 0,
         dwExtraInfo: MAGIC,
     };
     let mut up = down;
-    up.Anonymous.mi.dwFlags = MOUSEEVENTF_MIDDLEUP;
+    up.Anonymous.mi.dwFlags = up_flag;
     send(&[down, up]);
 }

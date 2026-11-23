@@ -86,6 +86,7 @@ public sealed class ConfigStore
     void Hook(Config c)
     {
         c.PropertyChanged += (_, _) => Schedule();
+        HookActivation(c.Activation);
         c.Layers.CollectionChanged += (_, e) =>
         {
             if (e.Action == NotifyCollectionChangedAction.Add && e.NewItems != null)
@@ -93,6 +94,23 @@ public sealed class ConfigStore
             Schedule();
         };
         foreach (var l in c.Layers) HookLayer(l);
+    }
+
+    void HookActivation(Activation a)
+    {
+        a.Triggers.CollectionChanged += (_, e) =>
+        {
+            if (e.Action == NotifyCollectionChangedAction.Add && e.NewItems != null)
+                foreach (Trigger t in e.NewItems) HookTrigger(t);
+            Schedule();
+        };
+        foreach (var t in a.Triggers) HookTrigger(t);
+    }
+
+    void HookTrigger(Trigger t)
+    {
+        t.PropertyChanged += (_, _) => Schedule();
+        t.Keys.CollectionChanged += (_, _) => Schedule();
     }
 
     void HookLayer(Layer l)

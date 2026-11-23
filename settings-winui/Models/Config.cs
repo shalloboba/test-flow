@@ -18,6 +18,7 @@ public sealed class Config : Observable
     string _accent = "auto";
     int _scale = 100;
     string _updateUrl = "";
+    Activation _activation = Activation.CreateDefault();
     ObservableCollection<Layer> _layers = new();
 
     [JsonPropertyName("enabled")]
@@ -72,6 +73,13 @@ public sealed class Config : Observable
 
     [JsonPropertyName("update_url")]
     public string UpdateUrl { get => _updateUrl; set => Set(ref _updateUrl, value ?? ""); }
+
+    [JsonPropertyName("activation")]
+    public Activation Activation
+    {
+        get => _activation;
+        set { _activation = value ?? Activation.CreateDefault(); Raise(); }
+    }
 
     [JsonPropertyName("layers")]
     public ObservableCollection<Layer> Layers
@@ -141,6 +149,22 @@ public sealed class Config : Observable
     /// <summary>ホスト(Rust 側)の sanitize と同じ規則で整える。</summary>
     public void Sanitize()
     {
+        // 起動トリガー: 不正なものを落とし、最低 1 つ (中ボタン長押し) を保証する
+        _activation ??= Activation.CreateDefault();
+        var triggers = _activation.Triggers;
+        for (var i = triggers.Count - 1; i >= 0; i--)
+        {
+            var t = triggers[i];
+            if (t.Type == "keys")
+            {
+                for (var j = t.Keys.Count - 1; j >= 0; j--)
+                    if (string.IsNullOrWhiteSpace(t.Keys[j])) t.Keys.RemoveAt(j);
+                if (t.Keys.Count == 0) triggers.RemoveAt(i);
+            }
+        }
+        while (triggers.Count > 8) triggers.RemoveAt(triggers.Count - 1);
+        if (triggers.Count == 0) triggers.Add(new Trigger());
+
         if (_layers.Count == 0 && LegacyItems is { Count: > 0 })
         {
             var l = new Layer { Name = "" };
@@ -168,6 +192,8 @@ public sealed class Config : Observable
         Accent = other.Accent;
         Scale = other.Scale;
         UpdateUrl = other.UpdateUrl;
+        Activation.Triggers.Clear();
+        foreach (var t in other.Activation.Triggers) Activation.Triggers.Add(t.Clone());
         Layers.Clear();
         foreach (var l in other.Layers) Layers.Add(l.Clone());
     }

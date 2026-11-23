@@ -9,6 +9,7 @@ use std::cell::RefCell;
 use std::mem::{size_of, zeroed};
 use std::ptr::{null, null_mut};
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicIsize, AtomicU32, Ordering};
+use std::sync::Mutex;
 use windows_sys::Win32::Foundation::*;
 use windows_sys::Win32::Graphics::Gdi::*;
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
@@ -22,6 +23,8 @@ const WM_DOWN: u32 = WM_APP + 10;
 const WM_UP: u32 = WM_APP + 11;
 const WM_MOVE_HOOK: u32 = WM_APP + 12;
 const WM_LAYER: u32 = WM_APP + 13;
+const WM_KDOWN: u32 = WM_APP + 14;
+const WM_KUP: u32 = WM_APP + 15;
 const WM_TRAY: u32 = WM_APP + 20;
 const TIMER_HOLD: usize = 1;
 const TIMER_ANIM: usize = 2;
@@ -38,6 +41,16 @@ static MOVE_PENDING: AtomicBool = AtomicBool::new(false);
 static PRESS_X: AtomicI32 = AtomicI32::new(0);
 static PRESS_Y: AtomicI32 = AtomicI32::new(0);
 static SWALLOWED_KEY: AtomicU32 = AtomicU32::new(0);
+/// 起動トリガーになっているマウスボタンのビットマスク (1=中, 2=右, 4=X1, 8=X2)
+static MOUSE_MASK: AtomicU32 = AtomicU32::new(1);
+/// いま起動トリガーとして押さえているマウスボタンのビット (0 = なし)
+static MOUSE_HELD: AtomicU32 = AtomicU32::new(0);
+/// キー系トリガーが成立して押し続けられている間 true
+static KEY_HELD: AtomicBool = AtomicBool::new(false);
+/// キー系トリガーの VK コード列 (設定の再読み込みで差し替える)
+static KEY_TRIGGERS: Mutex<Vec<Vec<u32>>> = Mutex::new(Vec::new());
+/// 現在押されているキーの VK コード列
+static PRESSED_KEYS: Mutex<Vec<u32>> = Mutex::new(Vec::new());
 static LAYER_VK: [AtomicU32; 9] = [
     AtomicU32::new(0),
     AtomicU32::new(0),
@@ -54,6 +67,13 @@ fn apply_layer_keys(cfg: &Config) {
     let v = cfg.layer_vks();
     for (i, slot) in LAYER_VK.iter().enumerate() {
         slot.store(v.get(i).copied().unwrap_or(0), Ordering::Relaxed);
+    }
+}
+
+fn apply_triggers(cfg: &Config) {
+    MOUSE_MASK.store(cfg.activation.mouse_mask(), Ordering::Relaxed);
+    if let Ok(mut t) = KEY_TRIGGERS.lock() {
+        *t = cfg.activation.key_triggers();
     }
 }
 
@@ -96,17 +116,36 @@ unsafe extern "system" fn hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -
     if code >= 0 && ENABLED.load(Ordering::Relaxed) {
         let info = &*(lparam as *const MSLLHOOKSTRUCT);
         if info.dwExtraInfo != actions::MAGIC {
-            match wparam as u32 {
-                WM_MBUTTONDOWN => {
-                    PRESSED.store(true, Ordering::Relaxed);
-                    PRESS_X.store(info.pt.x, Ordering::Relaxed);
-                    PRESS_Y.store(info.pt.y, Ordering::Relaxed);
-                    PostMessageW(host(), WM_DOWN, 0, 0);
-                    return 1;
+            let mouse_bit = |msg: u32| -> u32 {
+                match msg {
+                    WM_RBUTTONDOWN | WM_RBUTTONUP => 2,
+                    WM_XBUTTONDOWN | WM_XBUTTONUP => {
+                        if (info.mouseData >> 16) as u16 == 1 {
+                            4
+                        } else {
+                            8
+                        }
+                    }
+                    _ => 1,
                 }
-                WM_MBUTTONUP => {
-                    if PRESSED.swap(false, Ordering::Relaxed) {
-                        PostMessageW(host(), WM_UP, 0, 0);
+            };
+            match wparam as u32 {
+                WM_MBUTTONDOWN | WM_RBUTTONDOWN | WM_XBUTTONDOWN => {
+                    let bit = mouse_bit(wparam as u32);
+                    if MOUSE_MASK.load(Ordering::Relaxed) & bit != 0 && !MENU_OPEN.load(Ordering::Relaxed) {
+                        PRESSED.store(true, Ordering::Relaxed);
+                        MOUSE_HELD.store(bit, Ordering::Relaxed);
+                        PRESS_X.store(info.pt.x, Ordering::Relaxed);
+                        PRESS_Y.store(info.pt.y, Ordering::Relaxed);
+                        PostMessageW(host(), WM_DOWN, 0, 0);
+                        return 1;
+                    }
+                }
+                WM_MBUTTONUP | WM_RBUTTONUP | WM_XBUTTONUP => {
+                    let bit = mouse_bit(wparam as u32);
+                    if MOUSE_HELD.load(Ordering::Relaxed) == bit && PRESSED.swap(false, Ordering::Relaxed) {
+                        MOUSE_HELD.store(0, Ordering::Relaxed);
+                        PostMessageW(host(), WM_UP, bit as WPARAM, 0);
                         return 1;
                     }
                 }
@@ -137,6 +176,9 @@ unsafe extern "system" fn key_proc(code: i32, wparam: WPARAM, lparam: LPARAM) ->
             let msg = wparam as u32;
             let is_up = msg == WM_KEYUP || msg == WM_SYSKEYUP;
             let is_down = msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN;
+            if is_down || is_up {
+                track_trigger_key(vk, is_down);
+            }
             if is_up && SWALLOWED_KEY.load(Ordering::Relaxed) == vk {
                 SWALLOWED_KEY.store(0, Ordering::Relaxed);
                 return 1;
@@ -167,6 +209,55 @@ unsafe extern "system" fn key_proc(code: i32, wparam: WPARAM, lparam: LPARAM) ->
         }
     }
     CallNextHookEx(null_mut(), code, wparam, lparam)
+}
+
+/// キー系の起動トリガーを監視する。押下中のキーの集合を保ち、成立・解除の遷移を本体へ知らせる。
+/// トリガーのキーは握りつぶさない (他のアプリの入力を壊さないため)。
+fn track_trigger_key(vk: u32, is_down: bool) {
+    let pressed_snapshot: Vec<u32> = {
+        let Ok(mut pressed) = PRESSED_KEYS.lock() else { return };
+        if is_down {
+            if !pressed.contains(&vk) {
+                pressed.push(vk);
+            }
+        } else {
+            pressed.retain(|&p| p != vk);
+        }
+        pressed.clone()
+    };
+    if !ENABLED.load(Ordering::Relaxed) {
+        return;
+    }
+    let Ok(triggers) = KEY_TRIGGERS.lock() else { return };
+    if triggers.is_empty() {
+        return;
+    }
+    if MENU_OPEN.load(Ordering::Relaxed) {
+        // 表示中は、開くのに使ったトリガーのキーが全部押されたままでなくなったら「離した」とみなす。
+        // 段切り替えのキーなど、余分なキーが混ざっても解除にはしない。
+        if KEY_HELD.load(Ordering::Relaxed)
+            && !triggers.iter().any(|t| radial_core::keys_contain(t, &pressed_snapshot))
+        {
+            KEY_HELD.store(false, Ordering::Relaxed);
+            unsafe {
+                PostMessageW(host(), WM_KUP, 0, 0);
+            }
+        }
+        return;
+    }
+    let matched = triggers.iter().any(|t| radial_core::keys_match(t, &pressed_snapshot));
+    if matched && !KEY_HELD.swap(true, Ordering::Relaxed) {
+        let (x, y) = cursor();
+        PRESS_X.store(x, Ordering::Relaxed);
+        PRESS_Y.store(y, Ordering::Relaxed);
+        unsafe {
+            PostMessageW(host(), WM_KDOWN, 0, 0);
+        }
+    } else if !matched && KEY_HELD.swap(false, Ordering::Relaxed) {
+        unsafe {
+            PostMessageW(host(), WM_KUP, 0, 0);
+        }
+    }
 }
 
 fn present(hwnd: HWND, pm: &tiny_skia::Pixmap, left: i32, top: i32, alpha: u8) {
@@ -312,6 +403,7 @@ fn launch_settings() {
 fn reload(app: &mut App, hwnd: HWND) {
     app.cfg = Config::load().for_host();
     apply_layer_keys(&app.cfg);
+    apply_triggers(&app.cfg);
     ENABLED.store(app.cfg.enabled, Ordering::Relaxed);
     if app.open.is_some() {
         close_menu(app, hwnd);
@@ -401,13 +493,32 @@ fn tray_menu(hwnd: HWND) {
 
 unsafe extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     match msg {
-        WM_DOWN => {
+        WM_DOWN | WM_KDOWN => {
             APP.with(|a| {
                 if let Some(app) = a.borrow_mut().as_mut() {
                     app.phase = Phase::Pending;
                     SetTimer(hwnd, TIMER_HOLD, app.cfg.hold_ms, None);
                 }
             });
+            0
+        }
+        WM_KUP => {
+            let mut run_item = None;
+            APP.with(|a| {
+                if let Some(app) = a.borrow_mut().as_mut() {
+                    KillTimer(hwnd, TIMER_HOLD);
+                    if app.open.is_some() && !matches!(app.phase, Phase::Pending) {
+                        let h = hover_at(app);
+                        let layer = app.open.as_ref().map(|o| o.layer).unwrap_or(0);
+                        run_item = h.and_then(|i| layer_items(app, layer).get(i).cloned());
+                        close_menu(app, hwnd);
+                    }
+                    app.phase = Phase::Idle;
+                }
+            });
+            if let Some(it) = run_item {
+                actions::run(&it);
+            }
             0
         }
         WM_UP => {
@@ -428,7 +539,7 @@ unsafe extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam:
                 }
             });
             if click {
-                actions::middle_click();
+                actions::replay_click(wparam as u32);
             }
             if let Some(it) = run_item {
                 actions::run(&it);
@@ -441,7 +552,9 @@ unsafe extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam:
                     KillTimer(hwnd, TIMER_HOLD);
                     APP.with(|a| {
                         if let Some(app) = a.borrow_mut().as_mut() {
-                            if matches!(app.phase, Phase::Pending) && PRESSED.load(Ordering::Relaxed) {
+                            if matches!(app.phase, Phase::Pending)
+                                && (PRESSED.load(Ordering::Relaxed) || KEY_HELD.load(Ordering::Relaxed))
+                            {
                                 app.phase = Phase::Idle;
                                 open_menu(app, hwnd, PRESS_X.load(Ordering::Relaxed), PRESS_Y.load(Ordering::Relaxed));
                             }
@@ -629,6 +742,7 @@ fn main() {
         let cfg = Config::load().for_host();
         ENABLED.store(cfg.enabled, Ordering::Relaxed);
         apply_layer_keys(&cfg);
+        apply_triggers(&cfg);
         let mut app = App {
             cfg,
             fonts: fonts::Fonts::load(),
