@@ -31,12 +31,12 @@
             </tk:SettingsCard>
             <tk:SettingsCard Header="段とアイテムを編集"
                              Description="メニューの項目、段、段を切り替えるキーを設定します"
-                             IsClickable="True" Click="EditLayers_Click">
+                             IsClickEnabled="True" Click="EditLayers_Click">
                 <tk:SettingsCard.HeaderIcon><FontIcon Glyph="&#xE81E;" /></tk:SettingsCard.HeaderIcon>
             </tk:SettingsCard>
             <tk:SettingsCard Header="全般の設定"
                              Description="長押しの時間、サイズ、テーマ、自動起動"
-                             IsClickable="True" Click="EditGeneral_Click">
+                             IsClickEnabled="True" Click="EditGeneral_Click">
                 <tk:SettingsCard.HeaderIcon><FontIcon Glyph="&#xE713;" /></tk:SettingsCard.HeaderIcon>
             </tk:SettingsCard>
 
