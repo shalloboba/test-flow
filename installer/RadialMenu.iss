@@ -9,7 +9,7 @@
 
 ; ビルド成果物の場所(このファイルからの相対パス)
 #define HostBin        "..\target\release\RadialMenu.exe"
-#define SettingsDir    "..\settings-winui\bin\Release\net8.0-windows10.0.19041.0\win-x64\publish"
+#define SettingsDir    "..\settings-winui\bin\Release\net8.0-windows10.0.22621.0\win-x64\publish"
 
 [Setup]
 ; 固定の AppId(更新時に同じアプリとして上書きするため、変えないこと)
